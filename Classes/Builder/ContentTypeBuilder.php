@@ -219,15 +219,16 @@ class ContentTypeBuilder
 
         $icon = $this->addIcon($form, $contentType);
 
-        if (VersionUtility::isCoreBelow14()) {
-            // Registration for "new content element" wizard to show our new CType
-            // (otherwise, only selectable via "Content type" drop-down)
-            if (!isset($GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'])) {
-                $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] = '';
-            }
-            $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] .= PHP_EOL
-                . $this->createPageTsConfig($form, $contentType, $icon);
+        // Registration for "new content element" wizard to show our new CType
+        // (otherwise, only selectable via "Content type" drop-down).
+        // NOTE: TYPO3 v14 ignores BE/defaultPageTSconfig (Breaking #105377); a
+        // BeforeLoadedPageTsConfigEvent listener re-injects this string into the
+        // v14 page TSconfig loading (see EXT:pxvaits LegacyDefaultPageTsConfigEventListener).
+        if (!isset($GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'])) {
+            $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] = '';
         }
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] .= PHP_EOL
+            . $this->createPageTsConfig($form, $contentType, $icon);
 
         ExtensionManagementUtility::addPlugin(
             [
