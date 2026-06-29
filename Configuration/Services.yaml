@@ -133,12 +133,6 @@ services:
         identifier: 'flux-boot-completed'
         method: 'spoolQueuedTcaOperations'
         event: TYPO3\CMS\Core\Core\Event\BootCompletedEvent
-  FluidTYPO3\Flux\Integration\Event\BeforeLoadedPageTsConfigEventListener:
-    tags:
-      - name: event.listener
-        identifier: 'flux-before-loaded-page-tsconfig'
-        method: 'injectFluxPageTsConfig'
-        event: TYPO3\CMS\Core\TypoScript\IncludeTree\Event\BeforeLoadedPageTsConfigEvent
   FluidTYPO3\Flux\Integration\Event\AfterLocalizationControllerColumnsEventListener:
     tags:
       - name: event.listener

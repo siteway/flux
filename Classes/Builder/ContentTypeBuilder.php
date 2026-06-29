@@ -219,26 +219,43 @@ class ContentTypeBuilder
 
         $icon = $this->addIcon($form, $contentType);
 
-        // Registration for "new content element" wizard to show our new CType
-        // (otherwise, only selectable via "Content type" drop-down).
-        // NOTE: TYPO3 v14 ignores BE/defaultPageTSconfig (Breaking #105377); a
-        // BeforeLoadedPageTsConfigEvent listener re-injects this string into the
-        // v14 page TSconfig loading (see EXT:pxvaits LegacyDefaultPageTsConfigEventListener).
-        if (!isset($GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'])) {
-            $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] = '';
-        }
-        $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] .= PHP_EOL
-            . $this->createPageTsConfig($form, $contentType, $icon);
+        if (VersionUtility::isCoreBelow14()) {
+            // TYPO3 v11-v13: register the "new content element" wizard group/items via
+            // page TSconfig (core reads $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig']).
+            if (!isset($GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'])) {
+                $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] = '';
+            }
+            $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'] .= PHP_EOL
+                . $this->createPageTsConfig($form, $contentType, $icon);
 
-        ExtensionManagementUtility::addPlugin(
-            [
-                $form->getLabel(),
-                $contentType,
-                $icon,
-            ],
-            'CType',
-            $providerExtensionName
-        );
+            ExtensionManagementUtility::addPlugin(
+                [
+                    $form->getLabel(),
+                    $contentType,
+                    $icon,
+                ],
+                'CType',
+                $providerExtensionName
+            );
+        } else {
+            // TYPO3 v14+: BE/defaultPageTSconfig was dropped (Breaking #105377) and the
+            // wizard groups CType items by their TCA item "group" (addPlugin() forces the
+            // "plugins" group when none is given). Register the group + label natively.
+            /** @var string|null $group */
+            $group = $form->getOption(FormOption::GROUP);
+            $groupName = $this->sanitizeString($group ?? 'fluxContent');
+            $this->registerContentTypeWizardGroup($form, $groupName);
+
+            ExtensionManagementUtility::addPlugin(
+                [
+                    'label' => $form->getLabel(),
+                    'value' => $contentType,
+                    'icon' => $icon,
+                    'group' => $groupName,
+                    'description' => $form->getDescription(),
+                ]
+            );
+        }
 
         /** @var \Countable $fields */
         $fields = $form->getFields();
@@ -276,6 +293,30 @@ class ContentTypeBuilder
             $GLOBALS['TCA']['tt_content']['types'][$contentType]['showitem'] = $showItem;
         }
         ExtensionManagementUtility::addToAllTCAtypes('tt_content', 'pi_flexform', $contentType);
+    }
+
+    /**
+     * Registers the "new content element" wizard group label for TYPO3 v14+, where the
+     * wizard groups CType items by their TCA item "group" (config.itemGroups). Mirrors the
+     * label reference built in createPageTsConfig() for the page-TSconfig based path (< v14).
+     */
+    protected function registerContentTypeWizardGroup(Form $form, string $groupName): void
+    {
+        // Core groups already carry a label; nothing to register.
+        if (in_array($groupName, ['common', 'menu', 'special', 'forms', 'plugins'], true)) {
+            return;
+        }
+        $extensionName = $form->getExtensionName() ?? 'FluidTYPO3.Flux';
+        $extensionKey = ExtensionNamingUtility::getExtensionKey($extensionName);
+        $labelExtensionKey = $groupName === 'fluxContent' ? 'flux' : $extensionKey;
+        $labelReference = 'LLL:EXT:'
+            . $labelExtensionKey
+            . $form->getLocalLanguageFileRelativePath()
+            . ':flux.newContentWizard.'
+            . $groupName;
+        if (!isset($GLOBALS['TCA']['tt_content']['columns']['CType']['config']['itemGroups'][$groupName])) {
+            $GLOBALS['TCA']['tt_content']['columns']['CType']['config']['itemGroups'][$groupName] = $labelReference;
+        }
     }
 
     public function createPageTsConfig(Form $form, string $contentType, string $icon): string
